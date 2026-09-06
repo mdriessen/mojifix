@@ -38,7 +38,7 @@ cargo install --path .
 mojifix [OPTIONS] <INPUT>
 
 Options:
-  -o, --output <OUTPUT>  Output file (required unless --in-place or --dry-run)
+  -o, --output <OUTPUT>  Output file
       --in-place         Replace input file atomically
       --dry-run          Show what would change without writing
       --conservative     Only repair when highly confident (default: true)

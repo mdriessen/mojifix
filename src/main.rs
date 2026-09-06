@@ -17,7 +17,7 @@ struct Args {
     /// Input UTF-8 file containing possible mojibake.
     input: PathBuf,
 
-    /// Output file. Required unless --in-place or --dry-run is specified.
+    /// Output file.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
