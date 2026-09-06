@@ -35,12 +35,49 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
+
+    if let Err(err) = prompt_for_missing_action(&mut args) {
+        eprintln!("error: {err}");
+        process::exit(1);
+    }
 
     if let Err(err) = run(&args) {
         eprintln!("error: {err}");
         process::exit(1);
     }
+}
+
+fn prompt_for_missing_action(args: &mut Args) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::IsTerminal;
+
+    if args.dry_run || args.in_place || args.output.is_some() {
+        return Ok(());
+    }
+
+    if !io::stdin().is_terminal() {
+        return Err("specify --output FILE or use --in-place".into());
+    }
+
+    let choice = dialoguer::Select::new()
+        .with_prompt("No action specified - what should mojifix do?")
+        .items(&["Dry-run (show what would change)", "Repair in-place", "Write to a new file"])
+        .default(0)
+        .interact()?;
+
+    match choice {
+        0 => args.dry_run = true,
+        1 => args.in_place = true,
+        2 => {
+            let path: String = dialoguer::Input::new()
+                .with_prompt("Output file")
+                .interact_text()?;
+            args.output = Some(PathBuf::from(path.trim()));
+        }
+        _ => unreachable!(),
+    }
+
+    Ok(())
 }
 
 fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
@@ -58,16 +95,16 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
     let input = std::str::from_utf8(&input_bytes)
         .map_err(|e| format!("input is not valid UTF-8: {e}"))?;
 
-    let repaired = repair_text(input, args.conservative);
+    let (repaired, fixes) = repair_text(input, args.conservative);
 
-    let changed = repaired != input;
+    let changed = repaired.as_str() != input;
 
     if !changed {
         println!("No likely mojibake detected; file was not changed.");
         return Ok(());
     }
 
-    let changes = count_changed_regions(input, &repaired);
+    let changes = fixes.len();
 
     println!(
         "Detected {} likely mojibake region(s).",
@@ -75,7 +112,15 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
     );
 
     if args.dry_run {
-        println!("Dry run: no files written.");
+        use rand::seq::SliceRandom;
+        let mut sampled: Vec<&(String, String)> = fixes.iter().collect();
+        let mut rng = rand::rng();
+        sampled.shuffle(&mut rng);
+
+        println!("Dry run: no files written. Sample fixes:");
+        for (before, after) in sampled.iter().take(5) {
+            println!("  {before} -> {after}");
+        }
         return Ok(());
     }
 
@@ -122,8 +167,9 @@ fn is_mojibake_marker(c: char) -> bool {
 ///    - it removes suspicious mojibake markers.
 ///
 /// This prevents us from blindly transforming all text.
-fn repair_text(input: &str, conservative: bool) -> String {
+fn repair_text(input: &str, conservative: bool) -> (String, Vec<(String, String)>) {
     let mut result = String::with_capacity(input.len());
+    let mut fixes = Vec::new();
 
     let mut chars = input.char_indices().peekable();
     let mut last_end = 0;
@@ -163,6 +209,9 @@ fn repair_text(input: &str, conservative: bool) -> String {
 
         match repair_candidate(candidate, conservative) {
             Some(fixed) => {
+                if fixed != candidate {
+                    fixes.push((candidate.to_string(), fixed.clone()));
+                }
                 result.push_str(&fixed);
             }
             None => {
@@ -176,7 +225,7 @@ fn repair_text(input: &str, conservative: bool) -> String {
 
     result.push_str(&input[last_end..]);
 
-    result
+    (result, fixes)
 }
 
 fn is_candidate_char(c: char) -> bool {
@@ -393,15 +442,6 @@ fn mojibake_score(s: &str) -> usize {
         .sum()
 }
 
-fn count_changed_regions(before: &str, after: &str) -> usize {
-    before
-        .split_whitespace()
-        .zip(after.split_whitespace())
-        .filter(|(a, b)| a != b)
-        .count()
-}
-
-/// Write a new file without touching an existing output file accidentally.
 fn write_new_file(path: &Path, data: &[u8]) -> io::Result<()> {
     if path.exists() {
         return Err(io::Error::new(
