@@ -17,7 +17,7 @@ struct Args {
     /// Input UTF-8 file containing possible mojibake.
     input: PathBuf,
 
-    /// Output file. Required unless --in-place is specified.
+    /// Output file. Required unless --in-place or --dry-run is specified.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -48,7 +48,7 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         return Err("--in-place and --output cannot be used together".into());
     }
 
-    if !args.in_place && args.output.is_none() {
+    if !args.dry_run && !args.in_place && args.output.is_none() {
         return Err("specify --output FILE or use --in-place".into());
     }
 
