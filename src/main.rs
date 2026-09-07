@@ -1,8 +1,7 @@
 use clap::Parser;
 use encoding_rs::WINDOWS_1252;
 use std::{
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
     process,
 };
@@ -61,7 +60,11 @@ fn prompt_for_missing_action(args: &mut Args) -> Result<(), Box<dyn std::error::
 
     let choice = dialoguer::Select::new()
         .with_prompt("No action specified - what should mojifix do?")
-        .items(&["Dry-run (show what would change)", "Repair in-place", "Write to a new file"])
+        .items(&[
+            "Dry-run (show what would change)",
+            "Repair in-place",
+            "Write to a new file",
+        ])
         .default(0)
         .interact()?;
 
@@ -92,8 +95,8 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
     let input_bytes = fs::read(&args.input)?;
 
     // Never silently reinterpret arbitrary binary data as text.
-    let input = std::str::from_utf8(&input_bytes)
-        .map_err(|e| format!("input is not valid UTF-8: {e}"))?;
+    let input =
+        std::str::from_utf8(&input_bytes).map_err(|e| format!("input is not valid UTF-8: {e}"))?;
 
     let (repaired, fixes) = repair_text(input, args.conservative);
 
@@ -106,10 +109,7 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let changes = fixes.len();
 
-    println!(
-        "Detected {} likely mojibake region(s).",
-        changes
-    );
+    println!("Detected {} likely mojibake region(s).", changes);
 
     if args.dry_run {
         use rand::seq::SliceRandom;
@@ -131,9 +131,7 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         let output = args.output.as_ref().unwrap();
 
         if same_file(&args.input, output)? {
-            return Err(
-                "input and output refer to the same file; use --in-place".into()
-            );
+            return Err("input and output refer to the same file; use --in-place".into());
         }
 
         write_new_file(output, repaired.as_bytes())?;
@@ -148,10 +146,7 @@ fn run(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
 /// This intentionally does NOT include every possible character. The goal is
 /// to avoid "fixing" legitimate multilingual text.
 fn is_mojibake_marker(c: char) -> bool {
-    matches!(
-        c,
-        'Ã' | 'Â' | 'Ð' | 'Ñ' | 'â' | 'ð' | '�'
-    )
+    matches!(c, 'Ã' | 'Â' | 'Ð' | 'Ñ' | 'â' | 'ð' | '�')
 }
 
 /// Repair a string conservatively.
@@ -195,8 +190,6 @@ fn repair_text(input: &str, conservative: bool) -> (String, Vec<(String, String)
             if is_candidate_char(next) {
                 chars.next();
                 end = idx + next.len_utf8();
-            } else if next.is_whitespace() {
-                break;
             } else {
                 break;
             }
@@ -459,10 +452,7 @@ fn write_new_file(path: &Path, data: &[u8]) -> io::Result<()> {
 /// directory, then renamed over the original.
 fn atomic_replace(path: &Path, data: &[u8]) -> io::Result<()> {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("file");
+    let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("file");
 
     let tmp = parent.join(format!(".{file_name}.mojifix.tmp"));
 

@@ -28,7 +28,6 @@ Conservative mode (default) only repairs when mojibake score decreases.
 ## Install
 
 ```bash
-# binary installed in ~/.cargo/bin/mojifix
 cargo install --path .
 ```
 
